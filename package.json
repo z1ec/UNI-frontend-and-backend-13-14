@@ -1,0 +1,17 @@
+{
+  "name": "frontandbackkr3",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Практические 15 и 16: App Shell, WebSocket и push-уведомления",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "web-push": "^3.6.7"
+  }
+}

@@ -3,74 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
-  <!-- Web App Manifest -->
-  <link rel="manifest" href="manifest.json">
-
-  <!-- Для Android -->
+  <meta name="theme-color" content="#2f6fed">
   <meta name="mobile-web-app-capable" content="yes">
-
-  <!-- Цвет темы для браузера -->
-  <meta name="theme-color" content="#4285f4">
-
-  <!-- Для iOS (иконка на домашний экран) -->
-  <link rel="apple-touch-icon" href="icons/favicon-128x128.png">
-
-  <!-- Для iOS (статус бар) -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-capable" content="yes">
-
-  <title>Мои заметки (PWA)</title>
-  <link rel="stylesheet" href="https://unpkg.com/chota@latest">
-  <link rel="icon" href="icons/favicon.ico" sizes="16x16" type="image/ico">
-  
-  <style>
-    body {
-      padding: 1rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    #notes-list {
-      margin-top: 1rem;
-      list-style: none;
-      padding: 0;
-    }
-    #notes-list li {
-      background: #f5f5f5;
-      margin: 0.5rem 0;
-      padding: 0.75rem;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .delete-btn {
-      background: #ff6b6b;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 0.25rem 0.75rem;
-      cursor: pointer;
-    }
-    .delete-btn:hover {
-      background: #ff4757;
-    }
-    h1 {
-      font-size: 1.8rem;
-    }
-  </style>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/favicon-128x128.png">
+  <link rel="icon" href="/icons/favicon.ico" sizes="16x16" type="image/x-icon">
+  <link rel="stylesheet" href="/style.css">
+  <title>Заметки PWA</title>
 </head>
 <body>
-  <h1>📝 Мои заметки</h1>
-  <p>Приложение работает офлайн и может быть установлено на устройство.</p>
+  <div class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Практические 15-16</p>
+        <h1>Заметки</h1>
+        <p class="subtitle">PWA с App Shell, офлайн-режимом, WebSocket и push-уведомлениями</p>
+      </div>
 
-  <form id="note-form" class="row">
-    <input class="col-9" type="text" id="note-input" placeholder="Введите заметку..." required>
-    <button class="col-3" type="submit">➕ Добавить</button>
-  </form>
+      <nav class="tabs" aria-label="Навигация приложения">
+        <button id="home-btn" class="tab active" type="button">Главная</button>
+        <button id="about-btn" class="tab" type="button">О приложении</button>
+      </nav>
+    </header>
 
-  <ul id="notes-list"></ul>
+    <main id="app-content" class="app-content" aria-live="polite">
+      <div class="loading-state">Загрузка...</div>
+    </main>
 
-  <script src="app.js"></script>
+    <footer class="app-footer">
+      <div class="push-actions">
+        <button id="enable-push" class="action-btn action-btn-primary" type="button">
+          Включить уведомления
+        </button>
+        <button id="disable-push" class="action-btn action-btn-secondary hidden" type="button">
+          Отключить уведомления
+        </button>
+      </div>
+      <p id="status-line" class="status-line">Приложение готово к работе офлайн после первого посещения.</p>
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>
