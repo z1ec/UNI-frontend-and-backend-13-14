@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = 'app-shell-v2';
+const APP_SHELL_CACHE = 'app-shell-v3';
 const DYNAMIC_CACHE = 'dynamic-content-v1';
 const APP_SHELL_ASSETS = [
   '/',
@@ -89,23 +89,51 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   let data = {
     title: 'Новое уведомление',
-    body: ''
+    body: '',
+    reminderId: null
   };
 
   if (event.data) {
     data = event.data.json();
   }
 
+  const options = {
+    body: data.body,
+    icon: '/icons/favicon-128x128.png',
+    badge: '/icons/favicon-48x48.png',
+    data: {
+      reminderId: data.reminderId || null
+    }
+  };
+
+  if (data.reminderId) {
+    options.actions = [
+      {
+        action: 'snooze',
+        title: 'Отложить на 5 минут'
+      }
+    ];
+  }
+
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icons/favicon-128x128.png',
-      badge: '/icons/favicon-48x48.png'
-    })
+    self.registration.showNotification(data.title, options)
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
+  const { reminderId } = event.notification.data || {};
+
+  if (event.action === 'snooze' && reminderId) {
+    event.waitUntil(
+      fetch(`/snooze?reminderId=${encodeURIComponent(reminderId)}`, {
+        method: 'POST'
+      })
+        .catch((error) => console.error('Snooze failed:', error))
+        .finally(() => event.notification.close())
+    );
+    return;
+  }
+
   event.notification.close();
   event.waitUntil(clients.openWindow('/'));
 });

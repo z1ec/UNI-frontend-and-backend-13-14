@@ -2,8 +2,16 @@
   <h2>Добавить заметку</h2>
   <form id="note-form" class="note-form">
     <input id="note-input" type="text" placeholder="Введите текст заметки" required>
-    <input id="note-datetime" type="datetime-local" aria-label="Дата и время напоминания">
     <button type="submit" class="action-btn action-btn-primary">Добавить</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Добавить напоминание</h2>
+  <form id="reminder-form" class="note-form">
+    <input id="reminder-text" type="text" placeholder="Текст напоминания" required>
+    <input id="reminder-time" type="datetime-local" aria-label="Дата и время напоминания" required>
+    <button type="submit" class="action-btn action-btn-success">Добавить с напоминанием</button>
   </form>
 </section>
 

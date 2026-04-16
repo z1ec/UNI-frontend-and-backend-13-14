@@ -43,6 +43,7 @@ const io = socketIo(server, {
 });
 
 let subscriptions = [];
+const reminders = new Map();
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -70,26 +71,117 @@ app.post('/unsubscribe', (req, res) => {
   res.status(200).json({ message: 'Подписка удалена' });
 });
 
+function sendPush(payload) {
+  if (!isVapidConfigured) {
+    return;
+  }
+
+  subscriptions.forEach((subscription) => {
+    webpush.sendNotification(subscription, JSON.stringify(payload)).catch((error) => {
+      console.error('Push error:', error.message);
+    });
+  });
+}
+
+function scheduleReminder({ id, text, reminderTime }, title = 'Напоминание') {
+  const reminderId = Number(id);
+  const targetTime = Number(reminderTime);
+  const delay = targetTime - Date.now();
+
+  if (!reminderId || !text || Number.isNaN(targetTime) || delay <= 0) {
+    return false;
+  }
+
+  const existingReminder = reminders.get(reminderId);
+  if (existingReminder && existingReminder.timeoutId) {
+    clearTimeout(existingReminder.timeoutId);
+  }
+
+  const timeoutId = setTimeout(() => {
+    sendPush({
+      title,
+      body: text,
+      reminderId
+    });
+
+    reminders.set(reminderId, {
+      timeoutId: null,
+      text,
+      reminderTime: targetTime,
+      sentAt: Date.now()
+    });
+  }, delay);
+
+  reminders.set(reminderId, {
+    timeoutId,
+    text,
+    reminderTime: targetTime
+  });
+
+  return true;
+}
+
+function cancelReminder(id) {
+  const reminderId = Number(id);
+  const reminder = reminders.get(reminderId);
+
+  if (!reminder) {
+    return false;
+  }
+
+  if (reminder.timeoutId) {
+    clearTimeout(reminder.timeoutId);
+  }
+  reminders.delete(reminderId);
+  return true;
+}
+
+app.post('/snooze', (req, res) => {
+  const reminderId = Number(req.query.reminderId);
+  const reminder = reminders.get(reminderId);
+
+  if (!reminder) {
+    res.status(404).json({ error: 'Reminder not found' });
+    return;
+  }
+
+  const snoozeDelay = 5 * 60 * 1000;
+  scheduleReminder({
+    id: reminderId,
+    text: reminder.text,
+    reminderTime: Date.now() + snoozeDelay
+  }, 'Напоминание отложено');
+
+  res.status(200).json({ message: 'Reminder snoozed for 5 minutes' });
+});
+
 io.on('connection', (socket) => {
   console.log(`Клиент подключён: ${socket.id}`);
 
   socket.on('newTask', (task) => {
     io.emit('taskAdded', task);
-
-    if (!isVapidConfigured) {
-      return;
-    }
-
-    const payload = JSON.stringify({
+    sendPush({
       title: 'Новая задача',
       body: task.text
     });
+  });
 
-    subscriptions.forEach((subscription) => {
-      webpush.sendNotification(subscription, payload).catch((error) => {
-        console.error('Push error:', error.message);
+  socket.on('newReminder', (reminder) => {
+    const isScheduled = scheduleReminder(reminder);
+
+    if (isScheduled) {
+      io.emit('taskAdded', {
+        text: reminder.text,
+        timestamp: Date.now()
       });
-    });
+      console.log(`Напоминание ${reminder.id} запланировано на ${new Date(reminder.reminderTime).toLocaleString('ru-RU')}`);
+    }
+  });
+
+  socket.on('cancelReminder', ({ id } = {}) => {
+    if (cancelReminder(id)) {
+      console.log(`Напоминание ${id} отменено`);
+    }
   });
 
   socket.on('disconnect', () => {

@@ -2,7 +2,7 @@
   "name": "frontandbackkr3",
   "version": "1.0.0",
   "private": true,
-  "description": "Практические 15 и 16: App Shell, WebSocket и push-уведомления",
+  "description": "Практические 15-18: PWA, WebSocket, push-уведомления и напоминания",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

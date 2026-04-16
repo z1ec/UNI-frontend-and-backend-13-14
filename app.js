@@ -7,6 +7,7 @@ const statusLine = document.getElementById('status-line');
 
 const SERVER_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
 const PUBLIC_VAPID_KEY = window.PUBLIC_VAPID_KEY || 'BLvYYpVmFG_E4IyLb0xkZtcPHCnuqZi2fYP6Dl8TUNWl2PyyxaL-LRYRzaf8vFBtBPa-d-HOTXXU-S6R_RSPDR0';
+const NOTES_STORAGE_KEY = 'notes';
 const socket = typeof io === 'function' ? io(SERVER_URL) : null;
 
 function setStatus(message) {
@@ -19,7 +20,7 @@ function setActiveButton(activeId) {
 }
 
 function escapeHtml(str) {
-  return str.replace(/[&<>"]/g, (char) => {
+  return String(str).replace(/[&<>"]/g, (char) => {
     const map = {
       '&': '&amp;',
       '<': '&lt;',
@@ -30,17 +31,49 @@ function escapeHtml(str) {
   });
 }
 
-function formatDate(dateValue) {
-  if (!dateValue) {
+function normalizeNote(note) {
+  if (typeof note === 'string') {
+    return {
+      id: Date.now() + Math.random(),
+      text: note,
+      reminder: null,
+      timestamp: Date.now()
+    };
+  }
+
+  const reminderValue = note.reminder || note.datetime || null;
+  const reminder = reminderValue ? new Date(reminderValue).getTime() : null;
+
+  return {
+    id: Number(note.id) || Date.now() + Math.random(),
+    text: note.text || '',
+    reminder: Number.isNaN(reminder) ? null : reminder,
+    timestamp: Number(note.timestamp) || Date.now()
+  };
+}
+
+function getNotes() {
+  const notes = JSON.parse(localStorage.getItem(NOTES_STORAGE_KEY) || '[]').map(normalizeNote);
+  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
+  return notes;
+}
+
+function saveNotes(notes) {
+  localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
+}
+
+function formatReminder(reminderTimestamp) {
+  if (!reminderTimestamp) {
     return 'Без напоминания';
   }
 
-  const date = new Date(dateValue);
+  const date = new Date(reminderTimestamp);
   if (Number.isNaN(date.getTime())) {
     return 'Без напоминания';
   }
 
-  return date.toLocaleString('ru-RU');
+  const status = reminderTimestamp > Date.now() ? 'Напоминание' : 'Напоминание отправлено';
+  return `${status}: ${date.toLocaleString('ru-RU')}`;
 }
 
 function showToast(message) {
@@ -72,17 +105,7 @@ async function loadContent(page) {
 function loadNotes() {
   const list = document.getElementById('notes-list');
   const counter = document.getElementById('notes-counter');
-  const notes = JSON.parse(localStorage.getItem('notes') || '[]').map((note) => {
-    if (typeof note === 'string') {
-      return {
-        id: Date.now() + Math.random(),
-        text: note,
-        datetime: ''
-      };
-    }
-
-    return note;
-  });
+  const notes = getNotes();
 
   if (!list) {
     return;
@@ -96,7 +119,8 @@ function loadNotes() {
         <div class="note-row">
           <div>
             <p class="note-text">${escapeHtml(note.text)}</p>
-            <span class="note-meta">${formatDate(note.datetime)}</span>
+            <span class="note-meta">${formatReminder(note.reminder)}</span>
+            <span class="note-meta">Создано: ${new Date(note.timestamp).toLocaleString('ru-RU')}</span>
           </div>
           <button class="action-btn action-btn-danger delete-btn" type="button" data-id="${note.id}">
             Удалить
@@ -118,37 +142,40 @@ function loadNotes() {
 }
 
 function deleteNote(id) {
-  const notes = JSON.parse(localStorage.getItem('notes') || '[]').map((note) => (
-    typeof note === 'string'
-      ? { id: Date.now() + Math.random(), text: note, datetime: '' }
-      : note
-  ));
+  const notes = getNotes();
   const filteredNotes = notes.filter((note) => note.id !== id);
-  localStorage.setItem('notes', JSON.stringify(filteredNotes));
+  saveNotes(filteredNotes);
+
+  if (socket) {
+    socket.emit('cancelReminder', { id });
+  }
+
   loadNotes();
 }
 
-function addNote(text, datetime) {
-  const notes = JSON.parse(localStorage.getItem('notes') || '[]').map((note) => (
-    typeof note === 'string'
-      ? { id: Date.now() + Math.random(), text: note, datetime: '' }
-      : note
-  ));
+function addNote(text, reminderTimestamp = null) {
+  const notes = getNotes();
   const newNote = {
     id: Date.now(),
     text,
-    datetime: datetime || ''
+    reminder: reminderTimestamp,
+    timestamp: Date.now()
   };
 
   notes.push(newNote);
-  localStorage.setItem('notes', JSON.stringify(notes));
+  saveNotes(notes);
   loadNotes();
 
-  if (socket) {
+  if (socket && reminderTimestamp) {
+    socket.emit('newReminder', {
+      id: newNote.id,
+      text,
+      reminderTime: reminderTimestamp
+    });
+  } else if (socket) {
     socket.emit('newTask', {
       text,
-      datetime: newNote.datetime,
-      timestamp: Date.now()
+      timestamp: newNote.timestamp
     });
   }
 }
@@ -156,25 +183,45 @@ function addNote(text, datetime) {
 function initNotes() {
   const form = document.getElementById('note-form');
   const input = document.getElementById('note-input');
-  const datetimeInput = document.getElementById('note-datetime');
+  const reminderForm = document.getElementById('reminder-form');
+  const reminderText = document.getElementById('reminder-text');
+  const reminderTime = document.getElementById('reminder-time');
 
-  if (!form || !input || !datetimeInput) {
+  if (!form || !input || !reminderForm || !reminderText || !reminderTime) {
     return;
   }
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const text = input.value.trim();
-    const datetime = datetimeInput.value;
 
     if (!text) {
       return;
     }
 
-    addNote(text, datetime);
+    addNote(text);
     input.value = '';
-    datetimeInput.value = '';
     setStatus('Заметка сохранена локально.');
+  });
+
+  reminderForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = reminderText.value.trim();
+    const reminderTimestamp = new Date(reminderTime.value).getTime();
+
+    if (!text || Number.isNaN(reminderTimestamp)) {
+      return;
+    }
+
+    if (reminderTimestamp <= Date.now()) {
+      setStatus('Дата напоминания должна быть в будущем.');
+      return;
+    }
+
+    addNote(text, reminderTimestamp);
+    reminderText.value = '';
+    reminderTime.value = '';
+    setStatus('Напоминание запланировано.');
   });
 
   loadNotes();
@@ -288,6 +335,11 @@ aboutBtn.addEventListener('click', () => {
 });
 
 enablePushBtn.addEventListener('click', async () => {
+  if (!('Notification' in window)) {
+    setStatus('Уведомления не поддерживаются в этом браузере.');
+    return;
+  }
+
   if (Notification.permission === 'denied') {
     setStatus('Уведомления запрещены в настройках браузера.');
     return;
@@ -315,7 +367,7 @@ if (socket) {
 
   socket.on('taskAdded', (task) => {
     showToast(`Новая задача: ${task.text}`);
-    setStatus(`Получена задача от другого клиента: ${task.text}`);
+    setStatus(`Получена задача: ${task.text}`);
   });
 }
 

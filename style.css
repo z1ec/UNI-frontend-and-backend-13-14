@@ -203,6 +203,15 @@ h1 {
   color: var(--text);
 }
 
+.action-btn-success {
+  background: #1f9d68;
+  color: #fff;
+}
+
+.action-btn-success:hover {
+  background: #157a50;
+}
+
 .action-btn-danger {
   background: var(--danger);
   color: #fff;
